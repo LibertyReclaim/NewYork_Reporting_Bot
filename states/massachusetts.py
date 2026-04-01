@@ -203,30 +203,42 @@ def run(page: Page, filing: dict, company: dict) -> dict:
     page.get_by_label("Holder Name", exact=False).first.wait_for(state="visible", timeout=30_000)
 
     # Primary holder info
-    holder_name = str(company.get("company_name", "")).strip()
-    fein = str(company.get("fein", "")).strip()
+    holder_name = str(company.get("holder_name", company.get("company_name", ""))).strip()
+    fein = str(company.get("holder_tax_id", company.get("fein", ""))).strip()
+    holder_id = str(company.get("holder_id", "")).strip()
     contact_name = str(company.get("contact_name", "")).strip()
-    phone = str(company.get("phone", "")).strip()
+    phone = str(company.get("contact_phone", company.get("phone", ""))).strip()
+    phone_extension = str(company.get("phone_extension", "")).strip()
     email = str(company.get("email", "")).strip()
+    email_confirmation = str(company.get("email_confirmation", email)).strip()
 
-    address_raw = str(company.get("address", "")).strip()
-    address1, city, state, postal_code = parse_company_address(address_raw)
-    if not address1:
-        address1 = address_raw
+    address1 = str(company.get("address_1", "")).strip()
+    address2 = str(company.get("address_2", "")).strip()
+    city = str(company.get("city", "")).strip()
+    state = str(company.get("state", "")).strip()
+    postal_code = str(company.get("postal_code", company.get("zip", ""))).strip()
+
+    # Fallback parsing only if sheet does not provide structured address values.
+    if not address1 and not city and not postal_code:
+        address_raw = str(company.get("address", "")).strip()
+        parsed_address1, parsed_city, parsed_state, parsed_postal = parse_company_address(address_raw)
+        address1 = parsed_address1 or address_raw
+        city = city or parsed_city
+        state = state or parsed_state
+        postal_code = postal_code or parsed_postal
 
     safe_fill_by_label(page, "Holder Name", holder_name)
     safe_fill_by_label(page, "Holder Tax ID", fein)
-    # Holder ID and Phone Extension intentionally blank unless data available
-    if str(company.get("holder_id", "")).strip():
-        safe_fill_by_label(page, "Holder ID", str(company.get("holder_id", "")).strip())
+    if holder_id:
+        safe_fill_by_label(page, "Holder ID", holder_id)
     safe_fill_by_label(page, "Holder Contact", contact_name)
     safe_fill_by_label(page, "Contact Phone No", phone)
-    safe_fill_by_label(page, "Phone Extension", "")
+    safe_fill_by_label(page, "Phone Extension", phone_extension)
     safe_fill_by_label(page, "Email", email)
-    safe_fill_by_label(page, "Email Confirmation", email)
+    safe_fill_by_label(page, "Email Confirmation", email_confirmation)
 
     safe_fill_by_label(page, "Address 1", address1)
-    safe_fill_by_label(page, "Address 2", "")
+    safe_fill_by_label(page, "Address 2", address2)
     safe_fill_by_label(page, "Address 3", "")
     safe_fill_by_label(page, "City", city)
 
