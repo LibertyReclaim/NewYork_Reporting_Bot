@@ -51,7 +51,11 @@ def load_workbook_data(workbook_path: str) -> Tuple[List[Dict[str, str]], List[D
 def get_company_by_name(companies_rows: Sequence[Dict[str, str]], company_name: str) -> Optional[Dict[str, str]]:
     target = _normalize_cell(company_name).lower()
     for row in companies_rows:
-        if _normalize_cell(row.get("company_name", "")).lower() == target:
+        candidate_names = [
+            _normalize_cell(row.get("company_name", "")),
+            _normalize_cell(row.get("holder_name", "")),
+        ]
+        if any(name.lower() == target for name in candidate_names if name):
             return row
     return None
 

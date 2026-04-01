@@ -10,11 +10,11 @@ from playwright.sync_api import sync_playwright
 from states.connecticut import run_connecticut
 from states.massachusetts import run_massachusetts
 from states.new_york import run_new_york
+from utils.excel_reader import (
     get_company_by_name,
     get_filings_for_company_and_states,
     load_workbook_data,
 )
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Multi-state holder reporting bot controller")
@@ -49,6 +49,26 @@ def main() -> None:
     if not company_data:
         raise RuntimeError(f"Company not found in Companies sheet: {args.company!r}")
 
+# Workbook compatibility aliases (supports holder_* structure and legacy keys).
+company_data = dict(company_data)
+if not company_data.get("company_name"):
+    company_data["company_name"] = company_data.get("holder_name", "")
+if not company_data.get("fein"):
+    company_data["fein"] = company_data.get("holder_tax_id", "")
+if not company_data.get("phone"):
+    company_data["phone"] = company_data.get("contact_phone", "")
+if not company_data.get("address"):
+    parts = [
+        company_data.get("address_1", ""),
+        company_data.get("address_2", ""),
+        company_data.get("city", ""),
+        company_data.get("state", ""),
+    ]
+    company_data["address"] = ", ".join([p for p in parts if p]).strip(", ")
+
+company_id = company_data.get("company_id", "")
+if not company_id:
+    raise RuntimeError("Matched company row is missing company_id")
     company_id = company_data.get("company_id", "")
     if not company_id:
         raise RuntimeError("Matched company row is missing company_id")
