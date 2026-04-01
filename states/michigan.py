@@ -224,37 +224,36 @@ def run_michigan(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Holder City", str(company_data.get("city", "")).strip())
     safe_select_by_label(page, "Holder State", str(company_data.get("state", "")).strip(), optional=True)
 
-    holder_zip = str(company_data.get("zip") or company_data.get("zip_code") or "").strip()
-    safe_fill_by_label(page, "Holder Zip Code", holder_zip)
+    zip_raw = company_data.get("zip") or company_data.get("zip_code") or ""
+    zip_clean = str(zip_raw).strip()[:5]
+    log_debug(f"Filling Holder Zip Code (cleaned): {zip_clean!r}")
+    safe_fill_by_label(page, "Holder Zip Code", zip_clean)
 
     # REPORT INFO
     safe_select_by_label(page, "Report Type", str(filing_data.get("report_type", "")).strip(), optional=True)
-    safe_select_by_label(page, "Report Year", str(filing_data.get("report_year", "")).strip(), optional=True)
+    log_debug("Report Year dropdown is disabled; skipping")
 
-    negative_report = normalize_bool(filing_data.get("negative_report"))
-    safe_check_radio(page, "This is a Negative Report", negative_report, optional=True)
+    negative_report = False
+    log_debug("Negative Report field is disabled; defaulting to No")
 
-    if negative_report:
-        log_debug("Skipping totals because Negative Report is Yes")
-    else:
-        safe_fill_by_label(
-            page,
-            "Total Number of Shares Reported",
-            normalize_number(filing_data.get("total_shares_reported"), default=""),
-            optional=True,
-        )
-        safe_fill_by_label(
-            page,
-            "Total Number of Tangible Properties Reported",
-            normalize_number(filing_data.get("total_number_of_safekeeping_items"), default=""),
-            optional=True,
-        )
-        safe_fill_by_label(
-            page,
-            "Total Dollar Amount Remitted",
-            normalize_number(filing_data.get("total_dollar_amount_remitted"), default=""),
-            optional=True,
-        )
+    safe_fill_by_label(
+        page,
+        "Total Number of Shares Reported",
+        normalize_number(filing_data.get("total_shares_reported"), default=""),
+        optional=True,
+    )
+    safe_fill_by_label(
+        page,
+        "Total Number of Tangible Properties Reported",
+        normalize_number(filing_data.get("total_number_of_safekeeping_items"), default=""),
+        optional=True,
+    )
+    safe_fill_by_label(
+        page,
+        "Total Dollar Amount Remitted",
+        normalize_number(filing_data.get("total_dollar_amount_remitted"), default=""),
+        optional=True,
+    )
 
     safe_select_by_label(page, "Funds Remitted Via", str(filing_data.get("funds_remitted_via", "")).strip(), optional=True)
 
