@@ -309,7 +309,35 @@ def run(page: Page, filing: dict, company: dict) -> dict:
     safe_select_by_label(page, "Report Type", "Annual Report")
     report_year = str(filing.get("report_year", "")).strip()
     if report_year:
-        safe_select_by_label(page, "Report Year", report_year)
+        year_candidates = [
+            page.get_by_label("Report Year", exact=True),
+            page.get_by_label("Report Year", exact=False),
+            page.locator("select[name*='report'][name*='year' i], select[id*='report'][id*='year' i]"),
+        ]
+        selected_year_locator: Optional[Locator] = None
+        for candidate in year_candidates:
+            try:
+                if candidate.count() > 0:
+                    selected_year_locator = candidate.first
+                    break
+            except Exception:
+                continue
+
+        if selected_year_locator:
+            try:
+                selected_year_locator.wait_for(state="visible", timeout=5_000)
+                disabled_attr = selected_year_locator.get_attribute("disabled")
+                aria_disabled = (selected_year_locator.get_attribute("aria-disabled") or "").lower()
+                is_disabled = disabled_attr is not None or aria_disabled == "true"
+                if is_disabled:
+                    log_debug("Report Year is disabled; leaving existing value as-is")
+                else:
+                    safe_select_by_label(page, "Report Year", report_year)
+            except Exception:
+                # If inspection fails, fallback to normal selector behavior.
+                safe_select_by_label(page, "Report Year", report_year)
+        else:
+            safe_select_by_label(page, "Report Year", report_year)
     safe_select_negative_report(page, normalize_bool(filing.get("negative_report")))
 
     # Report Totals
