@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from playwright.sync_api import sync_playwright
 
+from states.california import run_california
 from states.connecticut import run_connecticut
 from states.massachusetts import run_massachusetts
 from states.new_jersey import run_new_jersey
@@ -111,6 +112,9 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "NJ":
                     result = run_new_jersey(context=context, company_data=company_data, filing_data=filing_data)
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "CA":
+                    result = run_california(context=context, company_data=company_data, filing_data=filing_data)
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 else:
                     msg = "not implemented"
