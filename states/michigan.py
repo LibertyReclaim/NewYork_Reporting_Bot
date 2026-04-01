@@ -31,6 +31,31 @@ def normalize_number(value, default: str = "") -> str:
     return text if text else default
 
 
+def normalize_mi_funds_remitted_via(value) -> str:
+    raw = str(value or "").strip()
+    normalized = raw.upper()
+
+    online_values = {"ACH", "WIRE", "ONLINE", "ELECTRONIC", "TEXNET"}
+    if normalized in online_values:
+        return "Online"
+
+    if normalized == "CHECK":
+        return "Check"
+
+    no_funds_values = {
+        "NONE",
+        "NO FUNDS",
+        "SECURITIES",
+        "TANGIBLE",
+        "SECURITIES ONLY",
+        "TANGIBLE ONLY",
+    }
+    if normalized in no_funds_values:
+        return "Securities or Tangible Items Only - no funds remitted"
+
+    return raw
+
+
 def first_visible_locator(candidates: list[Tuple[str, Locator]], timeout_ms: int = 4_000) -> Tuple[str, Optional[Locator]]:
     for strategy, candidate in candidates:
         try:
@@ -255,7 +280,20 @@ def run_michigan(context, company_data: dict, filing_data: dict) -> dict:
         optional=True,
     )
 
-    safe_select_by_label(page, "Funds Remitted Via", str(filing_data.get("funds_remitted_via", "")).strip(), optional=True)
+    raw_funds_value = str(filing_data.get("funds_remitted_via", "")).strip()
+    log_debug(f"Raw Funds Remitted Via: {raw_funds_value!r}")
+    normalized_funds_value = normalize_mi_funds_remitted_via(filing_data.get("funds_remitted_via"))
+    log_debug(f"Normalized Michigan Funds Remitted Via: {normalized_funds_value!r}")
+
+    selected_funds = safe_select_by_label(page, "Funds Remitted Via", normalized_funds_value, optional=False)
+    if not selected_funds:
+        if normalized_funds_value != raw_funds_value and raw_funds_value:
+            log_debug("Normalized funds value did not match; trying raw value")
+            raw_selected = safe_select_by_label(page, "Funds Remitted Via", raw_funds_value, optional=True)
+            if not raw_selected:
+                log_debug("Funds Remitted Via value did not match any dropdown option; leaving for manual review")
+        else:
+            log_debug("Funds Remitted Via value did not match any dropdown option; leaving for manual review")
 
     click_next(page, "after MI holder info")
 
