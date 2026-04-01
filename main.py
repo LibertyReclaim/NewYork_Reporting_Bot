@@ -9,6 +9,7 @@ from playwright.sync_api import sync_playwright
 
 from states.connecticut import run_connecticut
 from states.massachusetts import run_massachusetts
+from states.new_jersey import run_new_jersey
 from states.new_york import run_new_york
 from utils.excel_reader import (
     get_company_by_name,
@@ -107,6 +108,9 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "MA":
                     result = run_massachusetts(context=context, company_data=company_data, filing_data=filing_data)
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "NJ":
+                    result = run_new_jersey(context=context, company_data=company_data, filing_data=filing_data)
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 else:
                     msg = "not implemented"
