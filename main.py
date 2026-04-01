@@ -16,7 +16,6 @@ from utils.excel_reader import (
     load_workbook_data,
 )
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Multi-state holder reporting bot controller")
     parser.add_argument("--workbook", required=True, help="Path to master filing workbook")
@@ -50,23 +49,26 @@ def main() -> None:
     if not company_data:
         raise RuntimeError(f"Company not found in Companies sheet: {args.company!r}")
 
-    # Workbook compatibility aliases (supports holder_* structure and legacy keys).
-    company_data = dict(company_data)
-    if not company_data.get("company_name"):
-        company_data["company_name"] = company_data.get("holder_name", "")
-    if not company_data.get("fein"):
-        company_data["fein"] = company_data.get("holder_tax_id", "")
-    if not company_data.get("phone"):
-        company_data["phone"] = company_data.get("contact_phone", "")
-    if not company_data.get("address"):
-        parts = [
-            company_data.get("address_1", ""),
-            company_data.get("address_2", ""),
-            company_data.get("city", ""),
-            company_data.get("state", ""),
-        ]
-        company_data["address"] = ", ".join([p for p in parts if p]).strip(", ")
+# Workbook compatibility aliases (supports holder_* structure and legacy keys).
+company_data = dict(company_data)
+if not company_data.get("company_name"):
+    company_data["company_name"] = company_data.get("holder_name", "")
+if not company_data.get("fein"):
+    company_data["fein"] = company_data.get("holder_tax_id", "")
+if not company_data.get("phone"):
+    company_data["phone"] = company_data.get("contact_phone", "")
+if not company_data.get("address"):
+    parts = [
+        company_data.get("address_1", ""),
+        company_data.get("address_2", ""),
+        company_data.get("city", ""),
+        company_data.get("state", ""),
+    ]
+    company_data["address"] = ", ".join([p for p in parts if p]).strip(", ")
 
+company_id = company_data.get("company_id", "")
+if not company_id:
+    raise RuntimeError("Matched company row is missing company_id")
     company_id = company_data.get("company_id", "")
     if not company_id:
         raise RuntimeError("Matched company row is missing company_id")
@@ -108,16 +110,16 @@ def main() -> None:
                         summary[state_code] = result.get("status", str(result))
                     else:
                         summary[state_code] = str(result)
-                elif state_code == "MA":
-                    result = run_massachusetts(context=context, company_data=company_data, filing_data=filing_data)
-                    if isinstance(result, dict):
-                        summary[state_code] = result.get("status", str(result))
-                    else:
-                        summary[state_code] = str(result)
-                else:
-                    msg = "not implemented"
-                    print(f"[MAIN] {state_code}: {msg}")
-                    summary[state_code] = msg
+elif state_code == "MA":
+    result = run_massachusetts(context=context, company_data=company_data, filing_data=filing_data)
+    if isinstance(result, dict):
+        summary[state_code] = result.get("status", str(result))
+    else:
+        summary[state_code] = str(result)
+else:
+    msg = "not implemented"
+    print(f"[MAIN] {state_code}: {msg}")
+    summary[state_code] = msg
 
             except Exception as exc:
                 print(f"[MAIN][ERROR] {state_code} failed: {exc}")
