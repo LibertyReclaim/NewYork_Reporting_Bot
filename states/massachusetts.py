@@ -141,42 +141,83 @@ def safe_select_negative_report(page: Page, is_negative: bool) -> None:
 
 
 def safe_set_incorporation_date(page: Page, month: str = "01", day: str = "01", year: str = "2020") -> None:
-    candidates = [
-        page.get_by_label("Date of Incorporation", exact=False),
-        page.locator("select[name*='incorporation'][name*='month' i], select[id*='incorporation'][id*='month' i]"),
-    ]
-
-    # Try direct labeled control first if it's a date widget that can accept text.
-    try:
-        if candidates[0].count() > 0:
-            ctrl = candidates[0].first
-            ctrl.scroll_into_view_if_needed(timeout=10_000)
-            tag = ctrl.evaluate("el => (el.tagName || '').toLowerCase()")
-            if tag in {"input", "textarea"}:
-                ctrl.fill(f"{month}/{day}/{year}", timeout=10_000)
-                log_debug("Date of Incorporation filled directly as text")
-                return
-    except Exception:
-        pass
-
-    # Try common month/day/year select groups near date label.
-    label = page.get_by_text("Date of Incorporation", exact=False)
-    if label.count() > 0:
-        base = label.first
-        mm = base.locator("xpath=following::select[1]")
-        dd = base.locator("xpath=following::select[2]")
-        yy = base.locator("xpath=following::select[3]")
-        if mm.count() > 0 and dd.count() > 0 and yy.count() > 0:
-            mm.first.select_option(label=month)
-            dd.first.select_option(label=day)
+    def first_visible_from_selectors(selectors: list[str]) -> Optional[Locator]:
+        for selector in selectors:
+            loc = page.locator(selector)
             try:
-                yy.first.select_option(label=year)
+                if loc.count() > 0:
+                    loc.first.wait_for(state="visible", timeout=5_000)
+                    return loc.first
             except Exception:
-                yy.first.select_option(value=year)
-            log_debug("Date of Incorporation selected via MM/DD/YYYY dropdowns")
-            return
+                continue
+        return None
 
-    log_debug("Date of Incorporation placeholder could not be set; continuing")
+    month_locator = first_visible_from_selectors(
+        [
+            "select[name*='incorporation'][name*='month' i]",
+            "select[id*='incorporation'][id*='month' i]",
+            "select[name*='date'][name*='month' i]",
+            "select[id*='date'][id*='month' i]",
+        ]
+    )
+    day_locator = first_visible_from_selectors(
+        [
+            "select[name*='incorporation'][name*='day' i]",
+            "select[id*='incorporation'][id*='day' i]",
+            "select[name*='date'][name*='day' i]",
+            "select[id*='date'][id*='day' i]",
+        ]
+    )
+    year_locator = first_visible_from_selectors(
+        [
+            "select[name*='incorporation'][name*='year' i]",
+            "select[id*='incorporation'][id*='year' i]",
+            "select[name*='date'][name*='year' i]",
+            "select[id*='date'][id*='year' i]",
+        ]
+    )
+
+    if not (month_locator and day_locator and year_locator):
+        log_debug("Date of Incorporation dropdowns not found via stable selectors; continuing")
+        return
+
+    def select_if_exists(locator: Locator, target_value: str) -> None:
+        options = locator.locator("option")
+        option_count = options.count()
+        values: list[str] = []
+        labels: list[str] = []
+        for i in range(option_count):
+            opt = options.nth(i)
+            values.append((opt.get_attribute("value") or "").strip())
+            labels.append((opt.inner_text() or "").strip())
+
+        if target_value in values:
+            locator.select_option(value=target_value, timeout=10_000)
+            return
+        if target_value in labels:
+            locator.select_option(label=target_value, timeout=10_000)
+            return
+        # Accept unpadded variant, e.g. 1 instead of 01.
+        unpadded = str(int(target_value)) if target_value.isdigit() else target_value
+        if unpadded in values:
+            locator.select_option(value=unpadded, timeout=10_000)
+            return
+        if unpadded in labels:
+            locator.select_option(label=unpadded, timeout=10_000)
+            return
+        raise RuntimeError(f"[MA] Date option not found: {target_value}")
+
+    month_locator.scroll_into_view_if_needed(timeout=10_000)
+    day_locator.scroll_into_view_if_needed(timeout=10_000)
+    year_locator.scroll_into_view_if_needed(timeout=10_000)
+    month_locator.wait_for(state="visible", timeout=10_000)
+    day_locator.wait_for(state="visible", timeout=10_000)
+    year_locator.wait_for(state="visible", timeout=10_000)
+
+    select_if_exists(month_locator, month)
+    select_if_exists(day_locator, day)
+    select_if_exists(year_locator, year)
+    log_debug("Date of Incorporation selected via stable MM/DD/YYYY selectors")
 
 
 def click_next(page: Page, step_name: str) -> None:
