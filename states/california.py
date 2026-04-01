@@ -106,6 +106,22 @@ def safe_select_by_label(page: Page, label: str, value: str) -> bool:
     return False
 
 
+def get_select_locator_by_label(page: Page, label: str) -> Optional[Locator]:
+    candidates = [
+        page.get_by_label(label, exact=True),
+        page.get_by_label(label, exact=False),
+        page.locator(f"xpath=//*[contains(normalize-space(.), '{label}')][1]/following::*[self::select][1]"),
+    ]
+    for candidate in candidates:
+        try:
+            if candidate.count() > 0:
+                candidate.first.wait_for(state="visible", timeout=5_000)
+                return candidate.first
+        except Exception:
+            continue
+    return None
+
+
 def safe_check_radio(page: Page, group_label: str, yes_or_no: str) -> None:
     target_text = "Yes" if str(yes_or_no).strip().lower() == "yes" else "No"
 
@@ -189,15 +205,25 @@ def run(page: Page, filing: dict, company: dict) -> dict:
     safe_fill_by_label(page, "Total Cash Reported", total_cash_reported)
 
     payment_type = str(filing.get("funds_remitted_via", "")).strip()
-    if payment_type:
-        payment_ok = safe_select_by_label(page, "Funds Remitted Via", payment_type)
-        if not payment_ok:
-            log_debug(f"Funds Remitted Via value {payment_type!r} not found; leaving for manual review")
+    funds_locator = get_select_locator_by_label(page, "Funds Remitted Via")
+    if funds_locator:
+        disabled_attr = funds_locator.get_attribute("disabled")
+        aria_disabled = (funds_locator.get_attribute("aria-disabled") or "").lower()
+        is_disabled = disabled_attr is not None or aria_disabled == "true"
+        if is_disabled:
+            log_debug("Funds Remitted Via is disabled; skipping field")
+        elif payment_type:
+            payment_ok = safe_select_by_label(page, "Funds Remitted Via", payment_type)
+            if not payment_ok:
+                log_debug(f"Funds Remitted Via value {payment_type!r} not found; leaving for manual review")
+    else:
+        log_debug("Funds Remitted Via select not found; skipping field")
 
     total_shares_reported = normalize_number(filing.get("total_shares_reported", "0"), default="0")
     safe_fill_by_label(page, "Total Shares Reported", total_shares_reported)
 
-    safe_check_radio(page, "Includes Safe Deposit Box", "No")
+    includes_sdb = normalize_bool(filing.get("includes_safe_deposit_box"))
+    safe_check_radio(page, "Includes Safe Deposit Box", "Yes" if includes_sdb else "No")
 
     click_next(page, "after CA holder info")
 
