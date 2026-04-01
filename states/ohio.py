@@ -245,15 +245,17 @@ def run_ohio(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Address 2", str(company_data.get("address_2", "")).strip(), optional=True)
     safe_fill_by_label(page, "City", str(company_data.get("city", "")).strip())
     safe_select_by_label(page, "State", str(company_data.get("state", "")).strip(), optional=True)
-    safe_fill_by_label(page, "Postal Code", str(company_data.get("zip_code", "")).strip())
+    postal_code = str(company_data.get("zip") or company_data.get("zip_code") or "").strip()
+    safe_fill_by_label(page, "Postal Code", postal_code)
 
     safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip())
     safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip())
     safe_fill_by_label(page, "Phone Extension", str(company_data.get("phone_extension", "")).strip(), optional=True)
 
     email = str(company_data.get("email", "")).strip()
+    email_confirmation = str(company_data.get("email_confirmation", "")).strip() or email
     safe_fill_by_label(page, "Email Address", email)
-    safe_fill_by_label(page, "Email Confirmation", email)
+    safe_fill_by_label(page, "Email Address Confirmation", email_confirmation)
 
     safe_select_by_label(page, "State of Incorporation", str(company_data.get("state_of_incorporation", "")).strip(), optional=True)
     safe_select_date_triplet(
