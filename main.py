@@ -13,6 +13,7 @@ from states.illinois import run_illinois
 from states.massachusetts import run_massachusetts
 from states.new_jersey import run_new_jersey
 from states.new_york import run_new_york
+from states.ohio import run_ohio
 from states.texas import run_texas
 from utils.excel_reader import (
     get_company_by_name,
@@ -127,6 +128,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "IL":
                     result = run_illinois(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "OH":
+                    result = run_ohio(
                         context=context,
                         company_data=company_data,
                         filing_data=filing_data,
