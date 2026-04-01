@@ -8,8 +8,8 @@ from typing import Dict, List
 from playwright.sync_api import sync_playwright
 
 from states.connecticut import run_connecticut
+from states.massachusetts import run_massachusetts
 from states.new_york import run_new_york
-from utils.excel_reader import (
     get_company_by_name,
     get_filings_for_company_and_states,
     load_workbook_data,
@@ -90,10 +90,16 @@ def main() -> None:
                         summary[state_code] = result.get("status", str(result))
                     else:
                         summary[state_code] = str(result)
-                else:
-                    msg = "not implemented"
-                    print(f"[MAIN] {state_code}: {msg}")
-                    summary[state_code] = msg
+elif state_code == "MA":
+    result = run_massachusetts(context=context, company_data=company_data, filing_data=filing_data)
+    if isinstance(result, dict):
+        summary[state_code] = result.get("status", str(result))
+    else:
+        summary[state_code] = str(result)
+else:
+    msg = "not implemented"
+    print(f"[MAIN] {state_code}: {msg}")
+    summary[state_code] = msg
 
             except Exception as exc:
                 print(f"[MAIN][ERROR] {state_code} failed: {exc}")
