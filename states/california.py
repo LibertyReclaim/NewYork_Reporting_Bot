@@ -174,11 +174,11 @@ def run(page: Page, filing: dict, company: dict) -> dict:
     if report_year:
         safe_select_by_label(page, "Report Year", report_year)
 
-    fiscal_year_end = str(filing.get("fiscal_year_end", "")).strip()
-    if fiscal_year_end:
-        selected = safe_select_by_label(page, "Fiscal Year End", fiscal_year_end)
-        if not selected:
-            log_debug(f"Fiscal Year End value {fiscal_year_end!r} not found; leaving for manual review")
+    fiscal_year_end = str(filing.get("fiscal_year_end", "June")).strip() or "June"
+    log_debug(f"Fiscal Year End target value={fiscal_year_end!r}")
+    selected = safe_select_by_label(page, "Fiscal Year End", fiscal_year_end)
+    if not selected:
+        log_debug(f"Fiscal Year End value {fiscal_year_end!r} not found; leaving for manual review")
 
     negative_report = normalize_bool(filing.get("negative_report"))
     safe_check_radio(page, "This is a Negative Report", "Yes" if negative_report else "No")
