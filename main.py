@@ -12,6 +12,7 @@ from states.connecticut import run_connecticut
 from states.massachusetts import run_massachusetts
 from states.new_jersey import run_new_jersey
 from states.new_york import run_new_york
+from states.texas import run_texas
 from utils.excel_reader import (
     get_company_by_name,
     get_filings_for_company_and_states,
@@ -115,6 +116,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "CA":
                     result = run_california(context=context, company_data=company_data, filing_data=filing_data)
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "TX":
+                    result = run_texas(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 else:
                     msg = "not implemented"
