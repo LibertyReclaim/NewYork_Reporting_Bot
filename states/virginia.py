@@ -343,11 +343,31 @@ def run_virginia(context, company_data: dict, filing_data: dict) -> dict:
         yyyy = str(filing_data.get("due_diligence_year", "")).strip() or "2026"
         safe_fill_due_diligence_date(page, mm, dd, yyyy)
 
-        log_debug("Filling Total Dollar Amount")
+        total_dollar_amount_remitted = filing_data.get("total_dollar_amount_remitted")
+        total_remitted = filing_data.get("total_remitted")
+        total_payment_amount = filing_data.get("total_payment_amount")
+        total_cash_reported = filing_data.get("total_cash_reported")
+        log_debug(
+            "Raw Total Dollar Amount Remitted candidates: "
+            f"total_dollar_amount_remitted={total_dollar_amount_remitted!r}, "
+            f"total_remitted={total_remitted!r}, "
+            f"total_payment_amount={total_payment_amount!r}, "
+            f"total_cash_reported={total_cash_reported!r}"
+        )
+
+        amount = (
+            total_dollar_amount_remitted
+            or total_remitted
+            or total_payment_amount
+            or total_cash_reported
+            or ""
+        )
+        amount_normalized = normalize_number(amount, default="")
+        log_debug(f"Filling Total Dollar Amount Remitted: {amount_normalized!r}")
         safe_fill_by_label(
             page,
             "Total Dollar Amount Remitted",
-            normalize_number(filing_data.get("total_remitted"), default=""),
+            amount_normalized,
             optional=False,
         )
 
