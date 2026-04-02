@@ -4,15 +4,15 @@ from typing import Optional, Tuple
 
 from playwright.sync_api import Locator, Page
 
-TARGET_URL = "https://findrimoney.gov/app/holder-info"
+TARGET_URL = "https://ucp.dor.wa.gov/app/holder-info"
 
 
 def log_step(message: str) -> None:
-    print(f"[RI][STEP] {message}")
+    print(f"[WA][STEP] {message}")
 
 
 def log_debug(message: str) -> None:
-    print(f"[RI][DEBUG] {message}")
+    print(f"[WA][DEBUG] {message}")
 
 
 def normalize_bool(value) -> bool:
@@ -82,7 +82,7 @@ def safe_fill_by_label(page: Page, label: str, value: str, optional: bool = Fals
         if optional:
             log_debug(msg + " (optional; skipping)")
             return
-        raise RuntimeError(f"[RI] {msg}")
+        raise RuntimeError(f"[WA] {msg}")
 
     strategy, locator = found
     if is_disabled_or_readonly(locator):
@@ -106,7 +106,7 @@ def safe_select_by_label(page: Page, label: str, value: str, optional: bool = Fa
         if optional:
             log_debug(msg + " (optional; skipping)")
             return False
-        raise RuntimeError(f"[RI] {msg}")
+        raise RuntimeError(f"[WA] {msg}")
 
     strategy, locator = found
     if is_disabled_or_readonly(locator):
@@ -118,7 +118,7 @@ def safe_select_by_label(page: Page, label: str, value: str, optional: bool = Fa
         if optional:
             log_debug(f"Dropdown '{label}' value is blank (optional); skipping")
             return False
-        raise RuntimeError(f"[RI] Dropdown '{label}' value is blank")
+        raise RuntimeError(f"[WA] Dropdown '{label}' value is blank")
 
     log_debug(f"Selecting {label}: {value_str!r} via {strategy}")
     locator.scroll_into_view_if_needed(timeout=10_000)
@@ -136,20 +136,20 @@ def safe_select_by_label(page: Page, label: str, value: str, optional: bool = Fa
         pass
 
     locator.click(timeout=10_000)
+    option_by_text = page.get_by_text(value_str, exact=True)
+    if option_by_text.count() > 0 and option_by_text.first.is_visible():
+        option_by_text.first.click(timeout=10_000)
+        return True
+
     options = locator.locator("option")
-    available_options: list[str] = []
     for i in range(options.count()):
         opt = options.nth(i)
         label_text = (opt.inner_text() or "").strip()
         value_text = (opt.get_attribute("value") or "").strip()
-        if label_text:
-            available_options.append(label_text)
         if label_text == value_str:
             locator.select_option(value=value_text or label_text, timeout=10_000)
             return True
 
-    if available_options:
-        log_debug(f"Dropdown '{label}' available options: {available_options}")
     log_debug(f"Dropdown '{label}' did not match option for value={value_str!r}; skipping")
     return False
 
@@ -162,7 +162,7 @@ def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bo
         if optional:
             log_debug(msg + " (optional; skipping)")
             return
-        raise RuntimeError(f"[RI] {msg}")
+        raise RuntimeError(f"[WA] {msg}")
 
     q = question.first
     rel = q.locator(f"xpath=following::label[normalize-space(.)='{target}'][1]")
@@ -182,7 +182,41 @@ def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bo
     if optional:
         log_debug(f"Could not set radio '{group_label}' to {target} (optional; skipping)")
         return
-    raise RuntimeError(f"[RI] Could not set radio '{group_label}' to {target}")
+    raise RuntimeError(f"[WA] Could not set radio '{group_label}' to {target}")
+
+
+def select_funds_wire_transfer(page: Page) -> None:
+    print("[WA][DEBUG] Selecting Funds Remitted Via: 'Wire Transfer'")
+    found = get_field_locator(page, "Funds Remitted Via", kind="select")
+    if not found:
+        raise RuntimeError("[WA] Dropdown not found: Funds Remitted Via")
+
+    _, locator = found
+    if is_disabled_or_readonly(locator):
+        raise RuntimeError("[WA] Dropdown 'Funds Remitted Via' is disabled/read-only")
+
+    try:
+        locator.select_option(label="Wire Transfer", timeout=10_000)
+        return
+    except Exception:
+        pass
+
+    locator.click(timeout=10_000)
+    option_text = page.get_by_text("Wire Transfer", exact=True)
+    if option_text.count() > 0 and option_text.first.is_visible():
+        option_text.first.click(timeout=10_000)
+        return
+
+    options = locator.locator("option")
+    for i in range(options.count()):
+        opt = options.nth(i)
+        label_text = (opt.inner_text() or "").strip()
+        value_text = (opt.get_attribute("value") or "").strip()
+        if label_text == "Wire Transfer":
+            locator.select_option(value=value_text or label_text, timeout=10_000)
+            return
+
+    raise RuntimeError("[WA] Could not set Funds Remitted Via to 'Wire Transfer'")
 
 
 def click_next(page: Page) -> None:
@@ -193,44 +227,36 @@ def click_next(page: Page) -> None:
         page.locator("button:has-text('NEXT')").first.click(timeout=15_000)
 
 
-def run_rhode_island(context, company_data: dict, filing_data: dict) -> dict:
+def run_washington(context, company_data: dict, filing_data: dict) -> dict:
     page = context.new_page()
 
-    log_step(f"Navigating to {TARGET_URL}")
+    log_step("Navigating to Washington holder page")
     page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=60_000)
     page.wait_for_load_state("networkidle", timeout=60_000)
     page.get_by_label("Holder Name", exact=False).first.wait_for(state="visible", timeout=30_000)
 
-    log_step("Filling Primary Holder Information")
     safe_fill_by_label(page, "Holder Name", str(company_data.get("holder_name", "")).strip())
     safe_fill_by_label(page, "Holder Tax ID", str(company_data.get("holder_tax_id", "")).strip())
     safe_fill_by_label(page, "Holder ID", str(company_data.get("holder_id", "")).strip(), optional=True)
-    safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip())
-    safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip())
+    safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip(), optional=True)
+    safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip(), optional=True)
     safe_fill_by_label(page, "Phone Extension", str(company_data.get("phone_extension", "")).strip(), optional=True)
-    safe_fill_by_label(page, "Email Address", str(company_data.get("email", "")).strip())
-    safe_fill_by_label(page, "Email Address Confirmation", str(company_data.get("email_confirmation", "")).strip())
-    safe_select_by_label(page, "State of Incorporation", "Rhode Island")
+    safe_fill_by_label(page, "Email Address", str(company_data.get("email", "")).strip(), optional=True)
+    safe_fill_by_label(page, "Email Address Confirmation", str(company_data.get("email_confirmation", "")).strip(), optional=True)
 
-    log_step("Selecting Date of Incorporation triplet")
-    safe_select_by_label(page, "Month", "1", optional=True)
-    safe_select_by_label(page, "Day", "1", optional=True)
-    safe_select_by_label(page, "Year", "2025", optional=True)
-
-    log_step("Filling Report Information")
     safe_select_by_label(page, "Report Type", str(filing_data.get("report_type", "")).strip(), optional=True)
     safe_select_by_label(page, "Report Year", str(filing_data.get("report_year", "")).strip(), optional=True)
-    safe_check_radio(page, "This is a Zero/Negative Report", normalize_bool(filing_data.get("negative_report")), optional=True)
-    safe_fill_by_label(page, "Total Shares Remitted", "0")
+    safe_check_radio(page, "This is a Negative Report", normalize_bool(filing_data.get("negative_report")), optional=True)
+
     safe_fill_by_label(
         page,
         "Total Dollar Amount Remitted",
         normalize_number(filing_data.get("total_dollar_amount_remitted"), default=""),
         optional=True,
     )
-    safe_select_by_label(page, "Funds Remitted Via", "Check")
+
+    # Must run after total dollar amount remitted.
+    select_funds_wire_transfer(page)
 
     click_next(page)
-
-    print("RI reached_upload_step")
     return {"status": "reached_upload_step"}
