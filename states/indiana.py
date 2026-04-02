@@ -177,6 +177,68 @@ def safe_select_by_label(page: Page, label: str, value: str, optional: bool = Fa
     return False
 
 
+
+
+def safe_select_by_label_occurrence(page: Page, label: str, value: str, occurrence: int, optional: bool = False) -> bool:
+    value_str = str(value).strip()
+    if not value_str:
+        if optional:
+            log_debug(f"Dropdown '{label}' occurrence {occurrence} value is blank (optional); skipping")
+            return False
+        raise RuntimeError(f"[IN] Dropdown '{label}' occurrence {occurrence} value is blank")
+
+    candidates = [
+        (f"label partial occurrence {occurrence}: {label}", page.get_by_label(label, exact=False).nth(occurrence)),
+        (
+            f"nearby select occurrence {occurrence}: {label}",
+            page.locator(f"xpath=(//*[contains(normalize-space(.), '{label}')]/following::*[self::select])[{occurrence + 1}]"),
+        ),
+    ]
+
+    strategy, locator = first_visible_locator(candidates)
+    if not locator:
+        msg = f"Dropdown not found: {label} occurrence {occurrence}"
+        if optional:
+            log_debug(msg + " (optional; skipping)")
+            return False
+        raise RuntimeError(f"[IN] {msg}")
+
+    if is_disabled_or_readonly(locator):
+        log_debug(f"Dropdown '{label}' occurrence {occurrence} is disabled/read-only; skipping")
+        return False
+
+    log_debug(f"Selecting {label}: {value_str!r} via {strategy}")
+    locator.scroll_into_view_if_needed(timeout=10_000)
+
+    try:
+        locator.select_option(label=value_str, timeout=10_000)
+        return True
+    except Exception:
+        pass
+    try:
+        locator.select_option(value=value_str, timeout=10_000)
+        return True
+    except Exception:
+        pass
+
+    normalized_target = value_str.lower().replace(" ", "")
+    options = locator.locator("option")
+    for i in range(options.count()):
+        opt = options.nth(i)
+        opt_label = (opt.inner_text() or "").strip()
+        opt_value = (opt.get_attribute("value") or "").strip()
+        if opt_label.lower().replace(" ", "") == normalized_target:
+            locator.select_option(label=opt_label, timeout=10_000)
+            return True
+        if opt_value.lower().replace(" ", "") == normalized_target:
+            locator.select_option(value=opt_value, timeout=10_000)
+            return True
+
+    log_debug(
+        f"Dropdown '{label}' occurrence {occurrence} did not match option for value={value_str!r}; leaving for manual review"
+    )
+    return False
+
 def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bool = False) -> None:
     target_text = "Yes" if yes_value else "No"
     question = page.get_by_text(group_label, exact=False)
@@ -244,7 +306,7 @@ def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Holder Name", str(company_data.get("holder_name", "")).strip())
     safe_fill_by_label(page, "Holder FEIN", str(company_data.get("holder_tax_id", "")).strip())
     safe_fill_by_label(page, "State Tax ID", str(company_data.get("state_tax_id", "")).strip(), optional=True)
-    safe_fill_by_label(page, "Holder ID", str(company_data.get("holder_id", "")).strip(), optional=True)
+    log_debug("Holder ID should remain blank for Indiana; skipping")
 
     safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip())
     safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip())
@@ -259,7 +321,9 @@ def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Address 2", str(company_data.get("address_2", "")).strip(), optional=True)
     safe_fill_by_label(page, "Address 3", str(company_data.get("address_3", "")).strip(), optional=True)
     safe_fill_by_label(page, "City", str(company_data.get("city", "")).strip())
-    safe_select_by_label(page, "State", str(company_data.get("state", "")).strip(), optional=True)
+    holder_state_value = str(company_data.get("state", "")).strip()
+    log_debug(f"Selecting Holder Info State: {holder_state_value!r} via label partial: State")
+    safe_select_by_label_occurrence(page, "State", holder_state_value, occurrence=0, optional=False)
 
     postal_raw = company_data.get("zip") or company_data.get("zip_code") or ""
     postal_code = normalize_zip(postal_raw)
@@ -273,7 +337,9 @@ def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
     if not report_year_selected:
         log_debug("Report Year dropdown is disabled or unavailable; skipping")
 
-    safe_select_by_label(page, "State", str(company_data.get("state", "")).strip(), optional=True)
+    report_state_value = str(company_data.get("state", "")).strip()
+    log_debug(f"Selecting Report Info State: {report_state_value!r} via label partial: State")
+    safe_select_by_label_occurrence(page, "State", report_state_value, occurrence=1, optional=False)
 
     negative_report = normalize_bool(filing_data.get("negative_report"))
     safe_check_radio(page, "This is a Negative (Zero) Report", negative_report, optional=True)
