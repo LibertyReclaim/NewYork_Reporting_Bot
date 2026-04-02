@@ -14,6 +14,7 @@ from states.connecticut import run_connecticut
 from states.delaware import run_delaware
 from states.illinois import run_illinois
 from states.indiana import run_indiana
+from states.iowa import run_iowa
 from states.louisiana import run_louisiana
 from states.maryland import run_maryland
 from states.massachusetts import run_massachusetts
@@ -215,6 +216,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "AR":
                     result = run_arkansas(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "IA":
+                    result = run_iowa(
                         context=context,
                         company_data=company_data,
                         filing_data=filing_data,
