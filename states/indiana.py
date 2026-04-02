@@ -179,32 +179,58 @@ def safe_select_by_label(page: Page, label: str, value: str, optional: bool = Fa
 
 
 
-def safe_select_by_label_occurrence(page: Page, label: str, value: str, occurrence: int, optional: bool = False) -> bool:
+def safe_select_by_label_within_section(
+    page: Page,
+    section_heading: str,
+    label: str,
+    value: str,
+    optional: bool = False,
+) -> bool:
     value_str = str(value).strip()
     if not value_str:
         if optional:
-            log_debug(f"Dropdown '{label}' occurrence {occurrence} value is blank (optional); skipping")
+            log_debug(f"Section '{section_heading}' dropdown '{label}' value is blank (optional); skipping")
             return False
-        raise RuntimeError(f"[IN] Dropdown '{label}' occurrence {occurrence} value is blank")
+        raise RuntimeError(f"[IN] Section '{section_heading}' dropdown '{label}' value is blank")
+
+    section_heading_match = page.get_by_text(section_heading, exact=False)
+    if section_heading_match.count() == 0:
+        msg = f"Section not found: {section_heading}"
+        if optional:
+            log_debug(msg + " (optional; skipping)")
+            return False
+        raise RuntimeError(f"[IN] {msg}")
+
+    section_anchor = section_heading_match.first
+    section_container = section_anchor.locator("xpath=ancestor::*[self::section or self::fieldset or self::div][1]")
 
     candidates = [
-        (f"label partial occurrence {occurrence}: {label}", page.get_by_label(label, exact=False).nth(occurrence)),
         (
-            f"nearby select occurrence {occurrence}: {label}",
-            page.locator(f"xpath=(//*[contains(normalize-space(.), '{label}')]/following::*[self::select])[{occurrence + 1}]"),
+            f"section label exact: {section_heading} -> {label}",
+            section_container.get_by_label(label, exact=True),
+        ),
+        (
+            f"section label partial: {section_heading} -> {label}",
+            section_container.get_by_label(label, exact=False),
+        ),
+        (
+            f"section nearby select: {section_heading} -> {label}",
+            section_container.locator(
+                f"xpath=.//*[contains(normalize-space(.), '{label}')][1]/following::*[self::select][1]"
+            ),
         ),
     ]
 
     strategy, locator = first_visible_locator(candidates)
     if not locator:
-        msg = f"Dropdown not found: {label} occurrence {occurrence}"
+        msg = f"Dropdown not found in section '{section_heading}': {label}"
         if optional:
             log_debug(msg + " (optional; skipping)")
             return False
         raise RuntimeError(f"[IN] {msg}")
 
     if is_disabled_or_readonly(locator):
-        log_debug(f"Dropdown '{label}' occurrence {occurrence} is disabled/read-only; skipping")
+        log_debug(f"Dropdown '{label}' in section '{section_heading}' is disabled/read-only; skipping")
         return False
 
     log_debug(f"Selecting {label}: {value_str!r} via {strategy}")
@@ -235,9 +261,10 @@ def safe_select_by_label_occurrence(page: Page, label: str, value: str, occurren
             return True
 
     log_debug(
-        f"Dropdown '{label}' occurrence {occurrence} did not match option for value={value_str!r}; leaving for manual review"
+        f"Dropdown '{label}' in section '{section_heading}' did not match option for value={value_str!r}; leaving for manual review"
     )
     return False
+
 
 def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bool = False) -> None:
     target_text = "Yes" if yes_value else "No"
@@ -322,8 +349,8 @@ def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Address 3", str(company_data.get("address_3", "")).strip(), optional=True)
     safe_fill_by_label(page, "City", str(company_data.get("city", "")).strip())
     holder_state_value = str(company_data.get("state", "")).strip()
-    log_debug(f"Selecting Holder Info State: {holder_state_value!r} via label partial: State")
-    safe_select_by_label_occurrence(page, "State", holder_state_value, occurrence=0, optional=False)
+    log_debug(f"Selecting Holder Info State: {holder_state_value!r}")
+    safe_select_by_label_within_section(page, "Primary Holder Info", "State", holder_state_value, optional=False)
 
     postal_raw = company_data.get("zip") or company_data.get("zip_code") or ""
     postal_code = normalize_zip(postal_raw)
@@ -338,8 +365,8 @@ def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
         log_debug("Report Year dropdown is disabled or unavailable; skipping")
 
     report_state_value = str(company_data.get("state", "")).strip()
-    log_debug(f"Selecting Report Info State: {report_state_value!r} via label partial: State")
-    safe_select_by_label_occurrence(page, "State", report_state_value, occurrence=1, optional=False)
+    log_debug(f"Selecting Report Info State: {report_state_value!r}")
+    safe_select_by_label_within_section(page, "Report Info", "State", report_state_value, optional=False)
 
     negative_report = normalize_bool(filing_data.get("negative_report"))
     safe_check_radio(page, "This is a Negative (Zero) Report", negative_report, optional=True)
