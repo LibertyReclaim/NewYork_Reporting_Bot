@@ -137,14 +137,19 @@ def safe_select_by_label(page: Page, label: str, value: str, optional: bool = Fa
 
     locator.click(timeout=10_000)
     options = locator.locator("option")
+    available_options: list[str] = []
     for i in range(options.count()):
         opt = options.nth(i)
         label_text = (opt.inner_text() or "").strip()
         value_text = (opt.get_attribute("value") or "").strip()
+        if label_text:
+            available_options.append(label_text)
         if label_text == value_str:
             locator.select_option(value=value_text or label_text, timeout=10_000)
             return True
 
+    if available_options:
+        log_debug(f"Dropdown '{label}' available options: {available_options}")
     log_debug(f"Dropdown '{label}' did not match option for value={value_str!r}; skipping")
     return False
 
@@ -207,7 +212,7 @@ def run_nevada(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Holder Name", str(company_data.get("holder_name", "")).strip())
     safe_fill_by_label(page, "Holder Tax ID", str(company_data.get("holder_tax_id", "")).strip())
     safe_fill_by_label(page, "Holder ID", str(company_data.get("holder_id", "")).strip(), optional=True)
-    safe_select_by_label(page, "Holder Type", "Business")
+    safe_select_by_label(page, "Holder Type", "FINANCIAL SERVICES")
     safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip())
     safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip())
     safe_fill_by_label(page, "Phone Extension", str(company_data.get("phone_extension", "")).strip(), optional=True)
