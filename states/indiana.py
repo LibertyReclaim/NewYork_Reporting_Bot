@@ -321,6 +321,84 @@ def click_next(page: Page, step_name: str) -> None:
     locator.click(timeout=15_000)
 
 
+def select_holder_info_state(page: Page, state_value: str) -> bool:
+    target = str(state_value).strip()
+    log_debug(f"Selecting Holder Info State: {target!r}")
+    if not target:
+        log_debug("Holder Info State value is blank; skipping")
+        return False
+
+    section_heading_match = page.get_by_text("Primary Holder Info", exact=False)
+    if section_heading_match.count() == 0:
+        raise RuntimeError("[IN] Section not found: Primary Holder Info")
+
+    section_anchor = section_heading_match.first
+    section_container = section_anchor.locator("xpath=ancestor::*[self::section or self::fieldset or self::div][1]")
+
+    candidates = [
+        ("holder section label exact", section_container.get_by_label("State", exact=True)),
+        ("holder section label partial", section_container.get_by_label("State", exact=False)),
+        (
+            "holder section nearby select",
+            section_container.locator("xpath=.//*[contains(normalize-space(.), 'State')][1]/following::*[self::select][1]"),
+        ),
+    ]
+    strategy, locator = first_visible_locator(candidates)
+    if not locator:
+        raise RuntimeError("[IN] Holder Info State dropdown not found")
+    if is_disabled_or_readonly(locator):
+        log_debug("Holder Info State dropdown is disabled/read-only; skipping")
+        return False
+
+    locator.scroll_into_view_if_needed(timeout=10_000)
+
+    try:
+        locator.select_option(label=target, timeout=10_000)
+        log_debug(f"Holder Info State matched by visible text: {target!r}")
+        return True
+    except Exception:
+        pass
+
+    try:
+        locator.select_option(value=target, timeout=10_000)
+        log_debug(f"Holder Info State matched by option value: {target!r}")
+        return True
+    except Exception:
+        pass
+
+    options = locator.locator("option")
+    available_options = []
+    matched_label = ""
+    for i in range(options.count()):
+        opt = options.nth(i)
+        label_text = (opt.inner_text() or "").strip()
+        if label_text:
+            available_options.append(label_text)
+        if label_text.lower() == target.lower() and not matched_label:
+            matched_label = label_text
+
+    if matched_label:
+        try:
+            locator.select_option(label=matched_label, timeout=10_000)
+            log_debug(f"Holder Info State selected using fallback option-text match: {matched_label!r}")
+            return True
+        except Exception:
+            pass
+
+    try:
+        locator.click(timeout=10_000)
+        exact_option = locator.locator(f"option:has-text('{target}')")
+        if exact_option.count() > 0:
+            exact_option.first.click(timeout=10_000)
+            log_debug(f"Holder Info State selected using fallback option click: {target!r}")
+            return True
+    except Exception:
+        pass
+
+    log_debug(f"Holder Info State available options: {available_options}")
+    return False
+
+
 def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
     page = context.new_page()
 
@@ -349,8 +427,9 @@ def run_indiana(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Address 3", str(company_data.get("address_3", "")).strip(), optional=True)
     safe_fill_by_label(page, "City", str(company_data.get("city", "")).strip())
     holder_state_value = str(company_data.get("state", "")).strip()
-    log_debug(f"Selecting Holder Info State: {holder_state_value!r}")
-    safe_select_by_label_within_section(page, "Primary Holder Info", "State", holder_state_value, optional=False)
+    holder_state_selected = select_holder_info_state(page, holder_state_value)
+    if not holder_state_selected:
+        log_debug("Holder Info State selection failed; leaving for manual review")
 
     postal_raw = company_data.get("zip") or company_data.get("zip_code") or ""
     postal_code = normalize_zip(postal_raw)
