@@ -201,34 +201,91 @@ def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bo
     raise RuntimeError(f"[VA] {msg}")
 
 
+def safe_select_date_part(locator: Locator, target_value: str, field_name: str) -> None:
+    target = str(target_value).strip()
+    log_debug(f"Due-diligence {field_name} target: {target!r}")
+
+    try:
+        locator.select_option(value=target, timeout=10_000)
+        return
+    except Exception:
+        pass
+
+    try:
+        locator.select_option(label=target, timeout=10_000)
+        return
+    except Exception:
+        pass
+
+    options = locator.locator("option")
+    entries: list[tuple[str, str]] = []
+    available_labels: list[str] = []
+    for i in range(options.count()):
+        opt = options.nth(i)
+        label = (opt.inner_text() or "").strip()
+        value = (opt.get_attribute("value") or "").strip()
+        entries.append((label, value))
+        if label:
+            available_labels.append(label)
+
+    log_debug(f"Due-diligence {field_name} available options: {available_labels}")
+
+    normalized_target = target.lower().strip()
+
+    month_aliases = {normalized_target}
+    if field_name == "month":
+        if normalized_target in {"1", "01", "january", "jan"}:
+            month_aliases.update({"1", "01", "january", "jan"})
+
+    for label, value in entries:
+        normalized_label = label.lower().strip()
+        normalized_value = value.lower().strip()
+
+        if field_name == "month":
+            if normalized_label in month_aliases or normalized_value in month_aliases:
+                locator.select_option(value=value or label, timeout=10_000)
+                log_debug(f"Due-diligence month selected by fallback: {label or value!r}")
+                return
+        else:
+            if normalized_label == normalized_target or normalized_value == normalized_target:
+                locator.select_option(value=value or label, timeout=10_000)
+                log_debug(f"Due-diligence {field_name} selected by fallback: {label or value!r}")
+                return
+
+        if field_name in {"day", "month"} and normalized_target in {"01", "1"}:
+            if normalized_label in {"01", "1"} or normalized_value in {"01", "1"}:
+                locator.select_option(value=value or label, timeout=10_000)
+                log_debug(f"Due-diligence {field_name} selected by fallback: {label or value!r}")
+                return
+
+    raise RuntimeError(f"[VA] Could not select Due-diligence {field_name} for target={target!r}")
+
+
 def safe_fill_due_diligence_date(page: Page, mm: str, dd: str, yyyy: str) -> None:
     log_debug("Filling Due-diligence Date")
-    label = "Due-diligence Date"
 
-    # try triplet selects first
-    anchor = page.get_by_text(label, exact=False)
-    if anchor.count() > 0:
-        base = anchor.first
-        mm_sel = base.locator("xpath=following::select[1]")
-        dd_sel = base.locator("xpath=following::select[2]")
-        yy_sel = base.locator("xpath=following::select[3]")
-        if mm_sel.count() > 0 and dd_sel.count() > 0 and yy_sel.count() > 0:
-            try:
-                mm_sel.first.select_option(label=mm, timeout=10_000)
-            except Exception:
-                mm_sel.first.select_option(value=mm, timeout=10_000)
-            try:
-                dd_sel.first.select_option(label=dd, timeout=10_000)
-            except Exception:
-                dd_sel.first.select_option(value=dd, timeout=10_000)
-            try:
-                yy_sel.first.select_option(label=yyyy, timeout=10_000)
-            except Exception:
-                yy_sel.first.select_option(value=yyyy, timeout=10_000)
-            return
+    month_select = page.locator("#dueDiligenceDate-month")
+    day_select = page.locator("#dueDiligenceDate-day")
+    year_select = page.locator("#dueDiligenceDate-year")
 
-    # fallback single input date
-    safe_fill_by_label(page, label, f"{mm}/{dd}/{yyyy}", optional=False)
+    if month_select.count() == 0 or day_select.count() == 0 or year_select.count() == 0:
+        raise RuntimeError("[VA] Due-diligence date dropdowns not found by expected IDs")
+
+    month = month_select.first
+    day = day_select.first
+    year = year_select.first
+
+    if is_disabled_or_readonly(month) or is_disabled_or_readonly(day) or is_disabled_or_readonly(year):
+        raise RuntimeError("[VA] One or more Due-diligence date dropdowns are disabled/read-only")
+
+    month.scroll_into_view_if_needed(timeout=10_000)
+    safe_select_date_part(month, mm, "month")
+
+    day.scroll_into_view_if_needed(timeout=10_000)
+    safe_select_date_part(day, dd, "day")
+
+    year.scroll_into_view_if_needed(timeout=10_000)
+    safe_select_date_part(year, yyyy, "year")
 
 
 def click_next(page: Page, step_name: str) -> None:
