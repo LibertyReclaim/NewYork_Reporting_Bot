@@ -24,6 +24,7 @@ from states.michigan import run_michigan
 from states.minnesota import run_minnesota
 from states.nebraska import run_nebraska
 from states.nevada import run_nevada
+from states.new_hampshire import run_new_hampshire
 from states.new_jersey import run_new_jersey
 from states.new_york import run_new_york
 from states.north_carolina import run_north_carolina
@@ -263,6 +264,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "NV":
                     result = run_nevada(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "NH":
+                    result = run_new_hampshire(
                         context=context,
                         company_data=company_data,
                         filing_data=filing_data,
