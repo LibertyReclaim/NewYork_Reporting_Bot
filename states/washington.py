@@ -185,6 +185,30 @@ def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bo
     raise RuntimeError(f"[WA] Could not set radio '{group_label}' to {target}")
 
 
+def fill_federal_tax_id(page: Page, value: str) -> None:
+    fein_value = str(value).strip()
+    if not fein_value:
+        raise RuntimeError("[WA] Federal Tax ID (FEIN) value is blank")
+
+    labels_to_try = ["Federal Tax ID (FEIN)", "Federal Tax ID"]
+    for label in labels_to_try:
+        found = get_field_locator(page, label, kind="input")
+        if not found:
+            continue
+
+        strategy, locator = found
+        if is_disabled_or_readonly(locator):
+            log_debug(f"Field '{label}' is disabled/read-only; skipping")
+            return
+
+        log_debug(f"Filling Federal Tax ID (FEIN): {fein_value!r} via {strategy}")
+        locator.scroll_into_view_if_needed(timeout=10_000)
+        locator.fill(fein_value, timeout=10_000)
+        return
+
+    raise RuntimeError("[WA] Field not found: Federal Tax ID (FEIN)")
+
+
 def select_funds_wire_transfer(page: Page) -> None:
     print("[WA][DEBUG] Selecting Funds Remitted Via: 'Wire Transfer'")
     found = get_field_locator(page, "Funds Remitted Via", kind="select")
@@ -236,7 +260,7 @@ def run_washington(context, company_data: dict, filing_data: dict) -> dict:
     page.get_by_label("Holder Name", exact=False).first.wait_for(state="visible", timeout=30_000)
 
     safe_fill_by_label(page, "Holder Name", str(company_data.get("holder_name", "")).strip())
-    safe_fill_by_label(page, "Holder Tax ID", str(company_data.get("holder_tax_id", "")).strip())
+    fill_federal_tax_id(page, str(company_data.get("holder_tax_id", "")).strip())
     safe_fill_by_label(page, "Holder ID", str(company_data.get("holder_id", "")).strip(), optional=True)
     safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip(), optional=True)
     safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip(), optional=True)
@@ -257,6 +281,13 @@ def run_washington(context, company_data: dict, filing_data: dict) -> dict:
 
     # Must run after total dollar amount remitted.
     select_funds_wire_transfer(page)
+    safe_check_radio(
+        page,
+        "Does this report include records subject to the HIPAA Privacy Rule?",
+        normalize_bool(filing_data.get("includes_hipaa_records")),
+        optional=True,
+    )
 
     click_next(page)
+    print("WA reached_upload_step")
     return {"status": "reached_upload_step"}
