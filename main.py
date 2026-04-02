@@ -10,6 +10,7 @@ from playwright.sync_api import sync_playwright
 from states.alabama import run_alabama
 from states.arkansas import run_arkansas
 from states.california import run_california
+from states.colorado import run_colorado
 from states.connecticut import run_connecticut
 from states.delaware import run_delaware
 from states.illinois import run_illinois
@@ -139,6 +140,9 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "CA":
                     result = run_california(context=context, company_data=company_data, filing_data=filing_data)
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "CO":
+                    result = run_colorado(context=context, company_data=company_data, filing_data=filing_data)
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "TX":
                     result = run_texas(
