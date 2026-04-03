@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 
 from playwright.sync_api import Locator, Page
 
-TARGET_URL = "https://claimitoklahoma.gov/app/holder-info"
+TARGET_URL = "https://yourmoney.ok.gov/app/holder-info"
 
 
 def log_step(message: str) -> None:
