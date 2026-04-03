@@ -185,6 +185,30 @@ def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bo
     raise RuntimeError(f"[OR] Could not set radio '{group_label}' to {target}")
 
 
+def fill_email_address_confirmation(page: Page, email_value: str) -> None:
+    email_text = str(email_value).strip()
+    if not email_text:
+        raise RuntimeError("[OR] Email value is blank for confirmation field")
+
+    labels_to_try = ["Email Address Confirmation", "Confirmation"]
+    for label in labels_to_try:
+        found = get_field_locator(page, label, kind="input")
+        if not found:
+            continue
+
+        strategy, locator = found
+        if is_disabled_or_readonly(locator):
+            log_debug(f"Field '{label}' is disabled/read-only; skipping")
+            return
+
+        log_debug(f"Filling Email Address Confirmation: {email_text!r} via {strategy}")
+        locator.scroll_into_view_if_needed(timeout=10_000)
+        locator.fill(email_text, timeout=10_000)
+        return
+
+    raise RuntimeError("[OR] Field not found: Email Address Confirmation")
+
+
 def click_next(page: Page) -> None:
     log_step("Clicking NEXT")
     try:
@@ -224,7 +248,7 @@ def run_oregon(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip())
     safe_fill_by_label(page, "Phone Extension", str(company_data.get("phone_extension", "")).strip(), optional=True)
     safe_fill_by_label(page, "Email", str(company_data.get("email", "")).strip())
-    safe_fill_by_label(page, "Email Confirmation", str(company_data.get("email", "")).strip())
+    fill_email_address_confirmation(page, str(company_data.get("email", "")).strip())
 
     # Report Info
     safe_select_by_label(page, "Report Type", "Annual Report")
