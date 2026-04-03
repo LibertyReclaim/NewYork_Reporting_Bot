@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 from playwright.sync_api import Locator, Page
 
+# IMPORTANT: DO NOT CHANGE — correct Oklahoma portal
 TARGET_URL = "https://yourmoney.ok.gov/app/holder-info"
 
 
@@ -180,11 +181,52 @@ def safe_check_radio(page: Page, group_label: str, yes_value: bool, optional: bo
     raise RuntimeError(f"[OK] Could not set radio '{group_label}' to {target}")
 
 
-def select_funds_ach(page: Page) -> None:
-    log_debug("Selecting Funds Remitted Via: 'ACH'")
-    if safe_select_by_label(page, "Funds Remitted Via", "ACH", optional=True):
-        return
-    raise RuntimeError("[OK] Could not set Funds Remitted Via to 'ACH'")
+def safe_select_date_triplet(page: Page, label: str, month: str, day: str, year: str, optional: bool = False) -> None:
+    anchor = page.get_by_text(label, exact=False)
+    if anchor.count() == 0:
+        if optional:
+            log_debug(f"Date label not found (optional): {label}")
+            return
+        raise RuntimeError(f"[OK] Date label not found: {label}")
+
+    base = anchor.first
+    month_select = base.locator("xpath=following::select[1]")
+    day_select = base.locator("xpath=following::select[2]")
+    year_select = base.locator("xpath=following::select[3]")
+    if month_select.count() == 0 or day_select.count() == 0 or year_select.count() == 0:
+        if optional:
+            log_debug(f"Date dropdowns not found (optional): {label}")
+            return
+        raise RuntimeError(f"[OK] Date dropdowns not found for: {label}")
+
+    log_debug(f"Filling {label}: {month}/{day}/{year}")
+    for part_label, select_locator, value in [
+        ("month", month_select, month),
+        ("day", day_select, day),
+        ("year", year_select, year),
+    ]:
+        try:
+            select_locator.first.select_option(value=str(value), timeout=10_000)
+            continue
+        except Exception:
+            pass
+        try:
+            select_locator.first.select_option(label=str(value), timeout=10_000)
+            continue
+        except Exception:
+            pass
+        options = select_locator.first.locator("option")
+        selected = False
+        for i in range(options.count()):
+            opt = options.nth(i)
+            opt_label = (opt.inner_text() or "").strip()
+            opt_value = (opt.get_attribute("value") or "").strip()
+            if opt_label == str(value) or opt_value == str(value):
+                select_locator.first.select_option(value=opt_value or opt_label, timeout=10_000)
+                selected = True
+                break
+        if not selected and not optional:
+            raise RuntimeError(f"[OK] Could not select {label} {part_label}={value}")
 
 
 def click_next(page: Page) -> None:
@@ -210,21 +252,30 @@ def run_oklahoma(context, company_data: dict, filing_data: dict) -> dict:
     safe_fill_by_label(page, "Contact Name", str(company_data.get("contact_name", "")).strip())
     safe_fill_by_label(page, "Contact Phone Number", str(company_data.get("contact_phone", "")).strip())
     safe_fill_by_label(page, "Phone Extension", str(company_data.get("phone_extension", "")).strip(), optional=True)
-    safe_fill_by_label(page, "Email Address", str(company_data.get("email", "")).strip())
-    safe_fill_by_label(page, "Email Address Confirmation", str(company_data.get("email", "")).strip())
+    email = str(company_data.get("email", "")).strip()
+    safe_fill_by_label(page, "Email Address", email)
+    safe_fill_by_label(page, "Email Address Confirmation", email)
+    safe_select_by_label(page, "State of Incorporation", "Oklahoma", optional=True)
+    safe_select_date_triplet(page, "Date of Incorporation", "1", "1", "2025", optional=True)
+    safe_fill_by_label(page, "Please indicate the primary business activity of your company", "Healthcare", optional=True)
+    safe_check_radio(page, "Did you file a report of unclaimed property last year", False, optional=True)
 
     # Report Info
     safe_select_by_label(page, "Report Type", "Annual Report")
     safe_select_by_label(page, "Report Year", str(filing_data.get("report_year", "")).strip(), optional=True)
-    safe_check_radio(page, "This is a Negative Report", normalize_bool(filing_data.get("negative_report")), optional=True)
+    safe_check_radio(page, "This is a Negative Report", False, optional=True)
+    total_cash = normalize_number(filing_data.get("total_dollar_amount_remitted"), default="")
+    log_debug(f"Filling Total Cash: {total_cash!r}")
     safe_fill_by_label(
         page,
-        "Total Dollar Amount Remitted",
-        normalize_number(filing_data.get("total_dollar_amount_remitted"), default=""),
+        "Total Cash",
+        total_cash,
         optional=True,
     )
-
-    select_funds_ach(page)
+    log_debug("Filling Total Shares: '0'")
+    safe_fill_by_label(page, "Total Shares", "0", optional=True)
+    log_debug("Filling Total Safekeeping Items: '0'")
+    safe_fill_by_label(page, "Total Safekeeping Items", "0", optional=True)
 
     click_next(page)
     return {"status": "reached_upload_step"}
