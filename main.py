@@ -8,6 +8,7 @@ from typing import Dict, List
 from playwright.sync_api import sync_playwright
 
 from states.alabama import run_alabama
+from states.alaska import run_alaska
 from states.arkansas import run_arkansas
 from states.california import run_california
 from states.colorado import run_colorado
@@ -239,6 +240,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "AL":
                     result = run_alabama(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "AK":
+                    result = run_alaska(
                         context=context,
                         company_data=company_data,
                         filing_data=filing_data,
