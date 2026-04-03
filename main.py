@@ -32,6 +32,7 @@ from states.new_jersey import run_new_jersey
 from states.new_york import run_new_york
 from states.north_carolina import run_north_carolina
 from states.ohio import run_ohio
+from states.oklahoma import run_oklahoma
 from states.oregon import run_oregon
 from states.rhode_island import run_rhode_island
 from states.south_carolina import run_south_carolina
@@ -164,6 +165,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "OH":
                     result = run_ohio(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "OK":
+                    result = run_oklahoma(
                         context=context,
                         company_data=company_data,
                         filing_data=filing_data,
