@@ -38,6 +38,7 @@ from states.utah import run_utah
 from states.virginia import run_virginia
 from states.washington import run_washington
 from states.west_virginia import run_west_virginia
+from states.wyoming import run_wyoming
 from utils.excel_reader import (
     get_company_by_name,
     get_filings_for_company_and_states,
@@ -315,6 +316,13 @@ def main() -> None:
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "WV":
                     result = run_west_virginia(
+                        context=context,
+                        company_data=company_data,
+                        filing_data=filing_data,
+                    )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "WY":
+                    result = run_wyoming(
                         context=context,
                         company_data=company_data,
                         filing_data=filing_data,
