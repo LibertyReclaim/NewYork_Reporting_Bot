@@ -36,6 +36,7 @@ from states.oklahoma import run_oklahoma
 from states.oregon import run_oregon
 from states.rhode_island import run_rhode_island
 from states.south_carolina import run_south_carolina
+from states.south_dakota import run_south_dakota
 from states.texas import run_texas
 from states.utah import run_utah
 from states.virginia import run_virginia
@@ -241,6 +242,9 @@ def main() -> None:
                         company_data=company_data,
                         filing_data=filing_data,
                     )
+                    summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
+                elif state_code == "SD":
+                    result = run_south_dakota(context, company_data, filing_data)
                     summary[state_code] = result.get("status", str(result)) if isinstance(result, dict) else str(result)
                 elif state_code == "LA":
                     result = run_louisiana(
