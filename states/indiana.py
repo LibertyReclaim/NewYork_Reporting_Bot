@@ -323,29 +323,47 @@ def click_next(page: Page, step_name: str) -> None:
 
 def select_holder_info_state(page: Page, state_value: str) -> bool:
     target = str(state_value).strip()
-    log_debug(f"Selecting Holder Info State: {target!r}")
+    log_debug(f"Selecting Holder Info State directly: {target!r}")
     if not target:
         log_debug("Holder Info State value is blank; skipping")
         return False
 
-    section_heading_match = page.get_by_text("Primary Holder Info", exact=False)
-    if section_heading_match.count() == 0:
-        raise RuntimeError("[IN] Section not found: Primary Holder Info")
+    all_state_labels = page.locator(
+        "xpath=//label[contains(normalize-space(.), 'State:') or contains(normalize-space(.), 'State')]"
+    )
+    all_selects = page.locator("select")
+    log_debug(f"Total State labels found: {all_state_labels.count()}")
+    log_debug(f"Total select elements found: {all_selects.count()}")
 
-    section_anchor = section_heading_match.first
-    section_container = section_anchor.locator("xpath=ancestor::*[self::section or self::fieldset or self::div][1]")
+    report_info_heading = page.get_by_text("Report Info", exact=False)
+    report_anchor = report_info_heading.first if report_info_heading.count() > 0 else None
 
-    candidates = [
-        ("holder section label exact", section_container.get_by_label("State", exact=True)),
-        ("holder section label partial", section_container.get_by_label("State", exact=False)),
-        (
-            "holder section nearby select",
-            section_container.locator("xpath=.//*[contains(normalize-space(.), 'State')][1]/following::*[self::select][1]"),
-        ),
-    ]
-    strategy, locator = first_visible_locator(candidates)
-    if not locator:
-        raise RuntimeError("[IN] Holder Info State dropdown not found")
+    holder_state_label = None
+    holder_state_index = None
+    for i in range(all_state_labels.count()):
+        candidate_label = all_state_labels.nth(i)
+        try:
+            candidate_label.wait_for(state="attached", timeout=1_000)
+            if report_anchor is not None:
+                before_report = candidate_label.locator("xpath=following::*[normalize-space()='Report Info'][1]")
+                if before_report.count() == 0:
+                    continue
+
+            candidate_select = candidate_label.locator("xpath=following::select[1]")
+            if candidate_select.count() == 0:
+                continue
+
+            holder_state_label = candidate_label
+            holder_state_index = i
+            break
+        except Exception:
+            continue
+
+    if holder_state_label is None:
+        raise RuntimeError("[IN] Holder Info State label not found before Report Info")
+
+    locator = holder_state_label.locator("xpath=following::select[1]").first
+    log_debug(f"Using Holder Info state select index: {holder_state_index}")
     if is_disabled_or_readonly(locator):
         log_debug("Holder Info State dropdown is disabled/read-only; skipping")
         return False
@@ -354,46 +372,33 @@ def select_holder_info_state(page: Page, state_value: str) -> bool:
 
     try:
         locator.select_option(label=target, timeout=10_000)
-        log_debug(f"Holder Info State matched by visible text: {target!r}")
-        return True
-    except Exception:
-        pass
-
-    try:
-        locator.select_option(value=target, timeout=10_000)
-        log_debug(f"Holder Info State matched by option value: {target!r}")
+        log_debug(f"Holder Info State selected by visible text: {target!r}")
         return True
     except Exception:
         pass
 
     options = locator.locator("option")
-    available_options = []
-    matched_label = ""
+    available_options: list[str] = []
+    option_values_by_label: dict[str, str] = {}
     for i in range(options.count()):
         opt = options.nth(i)
         label_text = (opt.inner_text() or "").strip()
+        value_text = (opt.get_attribute("value") or "").strip()
         if label_text:
             available_options.append(label_text)
-        if label_text.lower() == target.lower() and not matched_label:
-            matched_label = label_text
+            option_values_by_label[label_text] = value_text
 
+    log_debug(f"Holder Info State direct options: {available_options}")
+
+    matched_label = next((opt for opt in available_options if opt.lower() == target.lower()), "")
     if matched_label:
+        mapped_value = option_values_by_label.get(matched_label, "")
         try:
-            locator.select_option(label=matched_label, timeout=10_000)
-            log_debug(f"Holder Info State selected using fallback option-text match: {matched_label!r}")
+            locator.select_option(value=mapped_value, timeout=10_000)
+            log_debug(f"Holder Info State selected by value fallback: {matched_label!r} -> {mapped_value!r}")
             return True
         except Exception:
             pass
-
-    try:
-        locator.click(timeout=10_000)
-        exact_option = locator.locator(f"option:has-text('{target}')")
-        if exact_option.count() > 0:
-            exact_option.first.click(timeout=10_000)
-            log_debug(f"Holder Info State selected using fallback option click: {target!r}")
-            return True
-    except Exception:
-        pass
 
     log_debug(f"Holder Info State available options: {available_options}")
     return False
