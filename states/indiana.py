@@ -368,7 +368,12 @@ def select_holder_info_state(page: Page, state_value: str) -> bool:
         log_debug("Holder Info State dropdown is disabled/read-only; skipping")
         return False
 
-    locator.scroll_into_view_if_needed(timeout=10_000)
+    select_index = int(
+        holder_state_select.evaluate(
+            "el => document.evaluate('count(preceding::select)', el, null, XPathResult.NUMBER_TYPE, null).numberValue"
+        )
+    )
+    log_debug(f"Using Holder Info state select index: {select_index}")
 
     try:
         locator.select_option(label=target, timeout=10_000)
